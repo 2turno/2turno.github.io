@@ -17,11 +17,12 @@ export default function PaginaUf() {
   const turno = useTurno();
   const pronto = turno && uf ? `${turno}-${uf}` : null;
   const geral = useAoVivo<Apuracao>(pronto, () => apuracao(turno!));
-  const muns = useAoVivo<{ municipios: Resumo[]; urnas: Record<string, { liberadas: number; total: number }>; consultadoEm: string }>(pronto, () => municipiosUf(turno!, uf), 8000);
+  const muns = useAoVivo<Awaited<ReturnType<typeof municipiosUf>>>(pronto, () => municipiosUf(turno!, uf), 5000);
   const [busca, setBusca] = useState("");
   const [ordem, setOrdem] = useState<Ordem>("eleitorado");
 
-  const resumo = geral.dados?.ufs[uf];
+  const resumo = muns.dados?.estado ?? geral.dados?.ufs[uf];
+  const d = muns.dados;
   const nomes = resumo?.cand.map((c) => c.nm) ?? [];
 
   const lista = useMemo(() => {
@@ -57,10 +58,8 @@ export default function PaginaUf() {
           <h1 className="font-serif text-5xl leading-[.9] tracking-tight sm:text-7xl">{NOMES_UF[uf]}</h1>
         </header>
 
-        {resumo && resumo.pst === 0 && Object.values(muns.dados?.urnas ?? {}).some((u) => u.liberadas > 0) && (
-          <Aviso>
-            O TSE já liberou boletins de urna deste estado, mas ainda não atualizou o total oficial. Abra um município para ver a soma das urnas já lidas.
-          </Aviso>
+        {d?.grande && d.liberadas > 0 && resumo?.pst === 0 && (
+          <Aviso>O TSE já liberou {fmt(d.liberadas)} urnas deste estado, mas ainda não atualizou o total oficial. Abra um município para ver a soma das urnas.</Aviso>
         )}
         {(geral.erro || muns.erro) && <Aviso>Falha ao consultar o TSE ({geral.erro ?? muns.erro}). Tentando de novo…</Aviso>}
 
@@ -70,7 +69,11 @@ export default function PaginaUf() {
             <div className="mt-9 flex flex-wrap justify-between gap-x-6 gap-y-1 font-mono text-xs text-[var(--mudo)] sm:text-sm">
               <span>Diferença: <b className="text-[var(--tinta)]">{fmt(Math.abs((resumo.cand[0]?.vap ?? 0) - (resumo.cand[1]?.vap ?? 0)))}</b> votos</span>
               <span>Municípios: <b style={{ color: CORES[0] }}>{vencidos[0]}</b> × <b style={{ color: CORES[1] }}>{vencidos[1]}</b></span>
-              <span>Divulgação TSE: {resumo.atualizado}</span>
+              {d?.estadoPeloBU
+                ? <span className="font-bold text-[#f5c518]">
+                    Parcial pela soma de {fmt(d.lidas)} urnas já lidas{d.coletando ? ` (${fmt(d.liberadas - d.lidas)} baixando…)` : ""} · total oficial do TSE ainda não atualizado
+                  </span>
+                : resumo.pst > 0 ? <span>Divulgação TSE: {resumo.atualizado}</span> : <span>Aguardando a primeira totalização do TSE</span>}
             </div>
             <div className="mt-6"><Totais r={resumo} colunas={6} /></div>
           </section>
@@ -103,7 +106,7 @@ export default function PaginaUf() {
             </div>
           )}
           <ul>
-            {lista.map((m) => <LinhaMunicipio key={m.cd} m={m} urnas={muns.dados?.urnas[m.cd!]} href={comTurno(`/municipio?uf=${uf}&mun=${m.cd}`, turno)} />)}
+            {lista.map((m) => <LinhaMunicipio key={m.cd} m={m} urnas={d?.urnas[m.cd!]} href={comTurno(`/municipio?uf=${uf}&mun=${m.cd}`, turno)} />)}
           </ul>
           {muns.dados && !lista.length && <p className="py-8 font-serif text-xl italic text-[var(--mudo)]">Nenhum município encontrado.</p>}
         </section>
@@ -114,7 +117,7 @@ export default function PaginaUf() {
   );
 }
 
-function LinhaMunicipio({ m, href, urnas }: { m: Resumo; href: string; urnas?: { liberadas: number; total: number } }) {
+function LinhaMunicipio({ m, href, urnas }: { m: Resumo & { peloBU?: boolean }; href: string; urnas?: { liberadas: number; total: number } }) {
   const [a, b] = m.cand;
   const tem = a && b && a.vap + b.vap > 0;
   const pct = (v: number, base: number) => (base ? fmtPct((v / base) * 100, 1) : "—");
@@ -124,6 +127,9 @@ function LinhaMunicipio({ m, href, urnas }: { m: Resumo; href: string; urnas?: {
         className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 border-b border-[var(--linha)] py-3 transition hover:bg-[var(--papel-2)] lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_repeat(5,minmax(0,1fr))]">
         <span className="min-w-0">
           <span className="block truncate font-serif text-lg leading-tight">{m.nome}</span>
+          {m.peloBU && urnas && (
+            <span className="block font-serif text-xs font-bold uppercase text-[#f5c518]">pelas urnas · {fmt(urnas.liberadas)} de {fmt(urnas.total)} liberadas</span>
+          )}
           {!tem && !!urnas?.liberadas && (
             <span className="block font-serif text-xs font-bold uppercase text-[#f5c518]">{fmt(urnas.liberadas)} de {fmt(urnas.total)} urnas liberadas · toque para ver</span>
           )}

@@ -48,33 +48,56 @@ export function useAoVivo<T>(chave: string | null, buscar: () => Promise<T>, ms 
   return { dados, erro };
 }
 
-/** Mesma pagina e parametros, no outro turno. */
-function trocarTurno(turno: number | null) {
-  if (turno === null || typeof window === "undefined") return "?"; // igual ao HTML estatico ate hidratar
+/** Mesma pagina e parametros, no turno pedido. */
+function linkTurno(destino: number, pronto: boolean) {
+  if (!pronto || typeof window === "undefined") return destino === 1 ? "?turno=1" : "?"; // igual ao HTML estatico ate hidratar
   const q = new URLSearchParams(location.search);
-  if (turno === 1) q.delete("turno"); else q.set("turno", "1");
-  return "?" + q.toString();
+  if (destino === 1) q.set("turno", "1"); else q.delete("turno");
+  const s = q.toString();
+  return s ? "?" + s : location.pathname;
 }
 
 /** Faixa preta superior: status ao vivo, turno e hora da ultima consulta. */
 export function Topo({ erro, consultadoEm, turno }: { erro: string | null; consultadoEm?: string; turno: number | null }) {
   const hoje = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const primeiro = turno === 1;
+  const aba = (t: number, txt: string) => {
+    const ativa = (t === 1) === primeiro;
+    return (
+      <a href={linkTurno(t, turno !== null)} aria-current={ativa ? "page" : undefined}
+        className={`flex items-center px-3 transition sm:px-4 ${ativa ? "bg-white text-black" : "text-[var(--mudo)] hover:bg-white/10 hover:text-white"}`}>
+        {txt}
+      </a>
+    );
+  };
   return (
-    <div className="sticky top-0 z-30 flex items-stretch justify-between border-b border-[var(--linha)] bg-[#04070f]/90 font-serif text-xs font-bold uppercase tracking-wider backdrop-blur sm:text-base">
-      <span className="flex items-stretch">
-        <span className={`flex items-center gap-2 px-3 py-2 text-white sm:px-4 ${erro ? "bg-neutral-600" : "bg-[var(--urgente)]"}`}>
-          <i className={`inline-block h-2.5 w-2.5 rounded-full bg-white ${erro ? "" : "piscar"}`} />
-          {erro ? "Reconectando" : "Ao vivo"}
+    <div className="sticky top-0 z-30 font-serif text-xs font-bold uppercase tracking-wider sm:text-base">
+      <div className="flex items-stretch justify-between border-b border-[var(--linha)] bg-[#04070f]/90 backdrop-blur">
+        <span className="flex items-stretch">
+          {primeiro ? (
+            <span className="flex items-center px-3 py-2 text-[var(--mudo)] sm:px-4">Resultado final</span>
+          ) : (
+            <span className={`flex items-center gap-2 px-3 py-2 text-white sm:px-4 ${erro ? "bg-neutral-600" : "bg-[var(--urgente)]"}`}>
+              <i className={`inline-block h-2.5 w-2.5 rounded-full bg-white ${erro ? "" : "piscar"}`} />
+              {erro ? "Reconectando" : "Ao vivo"}
+            </span>
+          )}
+          <nav className="flex items-stretch border-x border-[var(--linha)]" aria-label="Turno">
+            {aba(2, "2º turno")}
+            {aba(1, "1º turno")}
+          </nav>
         </span>
-        <span className="flex items-center bg-white px-3 text-black sm:px-4">{turno === 1 ? "1º" : "2º"} turno</span>
-      </span>
-      <span className="hidden items-center text-[var(--mudo)] lg:flex">{hoje}</span>
-      <span className="flex items-center gap-3 px-3 sm:gap-4 sm:px-4">
-        <a href={trocarTurno(turno)} className="text-[var(--mudo)] transition hover:text-white">
-          <span className="hidden sm:inline">Ver </span>{turno === 1 ? "2º" : "1º"} turno
-        </a>
-        <span className="tabular-nums">{consultadoEm ? new Date(consultadoEm).toLocaleTimeString("pt-BR") : "--:--:--"}</span>
-      </span>
+        <span className="hidden items-center text-[var(--mudo)] lg:flex">{hoje}</span>
+        <span className="flex items-center px-3 tabular-nums sm:px-4">
+          {consultadoEm ? new Date(consultadoEm).toLocaleTimeString("pt-BR") : "--:--:--"}
+        </span>
+      </div>
+      {primeiro && (
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-[#f5c518] px-3 py-1.5 text-black sm:px-4">
+          <span>Você está vendo o 1º turno (4 de outubro)</span>
+          <a href={linkTurno(2, turno !== null)} className="underline underline-offset-2">Voltar ao 2º turno ao vivo →</a>
+        </div>
+      )}
     </div>
   );
 }

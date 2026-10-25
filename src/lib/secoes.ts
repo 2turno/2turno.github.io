@@ -1,6 +1,6 @@
 // Resultados secao a secao (Boletins de Urna) agrupados por local de votacao (escola).
 import { lerBU, type Secao } from "./bu";
-import { BASE, CICLO, TURNOS, baixar, emParalelo, json } from "./tse";
+import { BASE, CICLO, TURNOS, baixar, json } from "./tse";
 
 export type Local = { nm: string; end: string; ba: string; lat: number | null; lon: number | null; el: number };
 export type Escola = Local & {
@@ -32,7 +32,6 @@ function configSecoes(turno: number, uf: string) {
 
 // ---------- boletins: baixados uma unica vez (BU totalizado nao muda) ----------
 const bus = new Map<string, Secao>();
-const coletando = new Set<string>();
 
 async function baixarBU(turno: number, uf: string, mun: string, zona: string, ns: string): Promise<Secao> {
   const p = TURNOS[turno].pleito;
@@ -47,16 +46,45 @@ async function baixarBU(turno: number, uf: string, mun: string, zona: string, ns
   return lerBU(bytes, Number(TURNOS[turno].eleicao));
 }
 
-/** Dispara (em segundo plano) o download dos BUs ainda nao lidos do municipio. */
-function coletar(turno: number, uf: string, mun: string, pendentes: { zona: string; ns: string }[]) {
-  const k = `${turno}-${uf}-${mun}`;
-  if (coletando.has(k) || !pendentes.length) return;
-  coletando.add(k);
-  emParalelo(pendentes, 40, async ({ zona, ns }) => {
-    const s = await baixarBU(turno, uf, mun, zona, ns);
-    bus.set(`${k}-${Number(zona)}-${Number(ns)}`, s);
-  }).finally(() => coletando.delete(k));
+// Fila unica de downloads: varias telas/municipios pedindo BUs ao mesmo tempo nao abrem
+// centenas de conexoes; o municipio aberto na tela tem prioridade sobre a soma do estado.
+const LIMITE = 32;
+const fila: { k: string; urgente: boolean; rodar: () => Promise<void> }[] = [];
+const naFila = new Set<string>();
+let ativos = 0;
+
+function bombear() {
+  while (ativos < LIMITE && fila.length) {
+    const i = fila.findIndex((t) => t.urgente);
+    const t = fila.splice(i >= 0 ? i : 0, 1)[0];
+    ativos++;
+    t.rodar().catch(() => {}).finally(() => {
+      ativos--;
+      naFila.delete(t.k);
+      bombear();
+    });
+  }
 }
+
+/** Enfileira os BUs ainda nao lidos (os que falharem voltam na proxima atualizacao). */
+function coletar(turno: number, uf: string, mun: string, pendentes: { zona: string; ns: string }[], urgente: boolean) {
+  const base = `${turno}-${uf}-${mun}`;
+  for (const { zona, ns } of pendentes) {
+    const k = `${base}-${Number(zona)}-${Number(ns)}`;
+    if (naFila.has(k)) {
+      if (urgente) fila.forEach((t) => t.k === k && (t.urgente = true));
+      continue;
+    }
+    naFila.add(k);
+    fila.push({ k, urgente, rodar: async () => { bus.set(k, await baixarBU(turno, uf, mun, zona, ns)); } });
+  }
+  bombear();
+}
+const coletandoMun = (turno: number, uf: string, mun: string) => {
+  const base = `${turno}-${uf}-${mun}-`;
+  for (const k of naFila) if (k.startsWith(base)) return true;
+  return false;
+};
 
 /** Quantas urnas de cada municipio o TSE ja liberou (um unico arquivo por UF). */
 export async function urnasPorMunicipio(turno: number, uf: string) {
@@ -69,6 +97,44 @@ export async function urnasPorMunicipio(turno: number, uf: string) {
   return out;
 }
 
+export type Soma = { lidas: number; aptos: number; comparecimento: number; brancos: number; nulos: number; votos: Record<string, number> };
+const somaVazia = (): Soma => ({ lidas: 0, aptos: 0, comparecimento: 0, brancos: 0, nulos: 0, votos: {} });
+function acumular(s: Soma, bu: Secao) {
+  s.lidas++; s.aptos += bu.aptos; s.comparecimento += bu.comparecimento; s.brancos += bu.brancos; s.nulos += bu.nulos;
+  for (const [n, q] of Object.entries(bu.votos)) s.votos[n] = (s.votos[n] ?? 0) + q;
+}
+
+/** Acima disso o total oficial do TSE ja estara andando; nao vale baixar o estado inteiro no navegador. */
+export const MAX_URNAS_ESTADO = 6000;
+
+/**
+ * Soma dos BUs liberados no estado inteiro e por municipio. Retorna `null` quando ha urnas
+ * demais para baixar no navegador (nesse ponto o total oficial do TSE ja deve estar em dia).
+ */
+export async function somaDoEstado(turno: number, uf: string) {
+  const cs = await configSecoes(turno, uf);
+  const muns = cs.abr.flatMap((a) => a.mu);
+  const liberadas = muns.reduce((n, m) => n + m.zon.reduce((k, z) => k + z.sec.filter((s) => s.da).length, 0), 0);
+  const totalSecoes = muns.reduce((n, m) => n + m.zon.reduce((k, z) => k + z.sec.length, 0), 0);
+  if (liberadas > MAX_URNAS_ESTADO) return null;
+
+  const total = somaVazia();
+  const porMun: Record<string, Soma> = {};
+  for (const m of muns) {
+    const base = `${turno}-${uf}-${m.cd}`;
+    const pend: { zona: string; ns: string }[] = [];
+    for (const z of m.zon) for (const s of z.sec) {
+      if (!s.da) continue;
+      const bu = bus.get(`${base}-${Number(z.cd)}-${Number(s.ns)}`);
+      if (!bu) { pend.push({ zona: z.cd, ns: s.ns }); continue; }
+      acumular(total, bu);
+      acumular((porMun[m.cd] ??= somaVazia()), bu);
+    }
+    coletar(turno, uf, m.cd, pend, false);
+  }
+  return { total, porMun, liberadas, totalSecoes, coletando: total.lidas < liberadas };
+}
+
 export async function escolasDoMunicipio(turno: number, uf: string, mun: string) {
   const [cs, idx] = await Promise.all([configSecoes(turno, uf), locais(uf)]);
   const m = cs.abr.flatMap((a) => a.mu).find((x) => x.cd === mun);
@@ -77,7 +143,7 @@ export async function escolasDoMunicipio(turno: number, uf: string, mun: string)
   const secoes = m.zon.flatMap((z) => z.sec.map((s) => ({ zona: z.cd, ns: s.ns, publicada: !!s.da })));
   const k = `${turno}-${uf}-${mun}`;
   const chave = (s: { zona: string; ns: string }) => `${k}-${Number(s.zona)}-${Number(s.ns)}`;
-  coletar(turno, uf, mun, secoes.filter((s) => s.publicada && !bus.has(chave(s))));
+  coletar(turno, uf, mun, secoes.filter((s) => s.publicada && !bus.has(chave(s))), true);
 
   const escolas = new Map<string, Escola>();
   const vazia = (id: string): Escola => ({
@@ -104,7 +170,7 @@ export async function escolasDoMunicipio(turno: number, uf: string, mun: string)
     totalSecoes: secoes.length,
     publicadas: secoes.filter((s) => s.publicada).length,
     lidas: secoes.filter((s) => bus.has(chave(s))).length,
-    coletando: coletando.has(k),
+    coletando: coletandoMun(turno, uf, mun),
     // escolas ja apuradas primeiro, depois as maiores
     escolas: [...escolas.values()].sort((a, b) => Number(b.secoes.length > 0) - Number(a.secoes.length > 0) || b.aptos - a.aptos || b.el - a.el),
   };

@@ -65,7 +65,7 @@ export default function Home() {
             <div className="rotulo mb-1">Eleições 2026 · Presidente da República · {turno === 1 ? "1º" : "2º"} turno</div>
             <h1 className="break-words font-serif text-3xl font-extrabold leading-[.95] sm:text-6xl">
               {br && lider >= 0 ? (
-                br.cand[lider].eleito ? <>{br.cand[lider].nm} <span className="text-[#16c172]">é eleito</span></> : <>{br.cand[lider].nm} <span className="text-[var(--mudo)]">lidera a apuração</span></>
+                br.cand[lider].eleito ? <>{br.cand[lider].nm} <span className="text-[#16c172]">é eleito</span></> : <>{br.cand[lider].nm} <span className="text-[var(--mudo)]">{turno === 1 ? "liderou o 1º turno" : "lidera a apuração"}</span></>
               ) : (
                 <>Apuração <span className="text-[var(--mudo)]">urna por urna</span></>
               )}
@@ -98,7 +98,7 @@ export default function Home() {
               <div className="mt-9 flex flex-wrap justify-between gap-x-6 gap-y-1 font-mono text-xs text-[var(--mudo)] sm:text-sm">
                 <span>Diferença: <b className="text-[var(--tinta)]">{fmt(dif)}</b> votos</span>
                 <span>Estados: <b style={{ color: CORES[0] }}>{vencidos[0]}</b> × <b style={{ color: CORES[1] }}>{vencidos[1]}</b></span>
-                <span>Divulgação TSE: {br.atualizado}</span>
+                <span>{br.pst > 0 ? `Divulgação TSE: ${br.atualizado}` : "Aguardando a primeira totalização do TSE"}</span>
               </div>
               <div className="mt-6"><Totais r={br} colunas={6} /></div>
             </section>
