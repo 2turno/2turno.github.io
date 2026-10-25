@@ -39,14 +39,45 @@ const pct = (v: unknown) => Number(String(v ?? "0").replace(",", ".")) || 0;
 
 export class NaoEncontrado extends Error {}
 
-/** GET com timeout e novas tentativas (o CDN do TSE oscila em noite de eleicao). */
+// ---------- controle de velocidade adaptativo ----------
+// O TSE devolve 429 a quem pede rapido demais. Comecamos devagar, aceleramos enquanto ele
+// responde bem e, ao primeiro 429, caimos pela metade e pausamos: acha sozinho o maximo tolerado.
+const dormir = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
+const ritmo = {
+  porSegundo: Number(process.env.TSE_RPS) || 6,
+  maximo: Number(process.env.TSE_RPS_MAX) || 25,
+  pausaAte: 0,
+  proximo: 0,
+  bloqueios: 0,
+};
+export const velocidade = () => ({ porSegundo: Math.round(ritmo.porSegundo * 10) / 10, bloqueios: ritmo.bloqueios });
+
+async function aguardarVez() {
+  const agora = Date.now();
+  const vez = Math.max(agora, ritmo.proximo, ritmo.pausaAte);
+  ritmo.proximo = vez + 1000 / ritmo.porSegundo;
+  if (vez > agora) await dormir(vez - agora);
+}
+function respostaOk() {
+  ritmo.porSegundo = Math.min(ritmo.maximo, ritmo.porSegundo + 0.05);
+}
+function levouBloqueio() {
+  ritmo.bloqueios++;
+  ritmo.porSegundo = Math.max(1, ritmo.porSegundo / 2);
+  ritmo.pausaAte = Date.now() + 5000;
+}
+
+/** GET com timeout, controle de velocidade e novas tentativas (o CDN do TSE oscila em noite de eleicao). */
 export async function baixar(url: string, tentativas = 4): Promise<Response> {
   let ultimo: unknown;
   for (let i = 0; i < tentativas; i++) {
     try {
+      await aguardarVez();
       const r = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(12_000) });
+      if (r.status === 429) levouBloqueio();
       if (r.status === 404 || r.status === 403) throw new NaoEncontrado(`${r.status} ${url}`);
       if (!r.ok) throw new Error(`${r.status} ${url}`);
+      respostaOk();
       return r;
     } catch (e) {
       if (e instanceof NaoEncontrado) throw e;
