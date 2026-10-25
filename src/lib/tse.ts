@@ -40,7 +40,7 @@ const pct = (v: unknown) => Number(String(v ?? "0").replace(",", ".")) || 0;
 export class NaoEncontrado extends Error {}
 
 /** GET com timeout e novas tentativas (o CDN do TSE oscila em noite de eleicao). */
-export async function baixar(url: string, tentativas = 3): Promise<Response> {
+export async function baixar(url: string, tentativas = 4): Promise<Response> {
   let ultimo: unknown;
   for (let i = 0; i < tentativas; i++) {
     try {
@@ -51,7 +51,9 @@ export async function baixar(url: string, tentativas = 3): Promise<Response> {
     } catch (e) {
       if (e instanceof NaoEncontrado) throw e;
       ultimo = e;
-      await new Promise((ok) => setTimeout(ok, 300 * (i + 1)));
+      // 429 = TSE pedindo calma: espera mais a cada tentativa (1,5s, 3s, 6s), com um pouco de sorteio
+      const lento = String(e).includes("429");
+      await new Promise((ok) => setTimeout(ok, (lento ? 1500 * 2 ** i : 300 * (i + 1)) + Math.random() * 400));
     }
   }
   throw ultimo;

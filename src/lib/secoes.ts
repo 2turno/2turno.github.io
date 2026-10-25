@@ -12,17 +12,17 @@ export type Escola = Local & {
 const locaisUf = new Map<string, Promise<Record<string, Local>>>();
 function locais(uf: string) {
   if (!locaisUf.has(uf))
-    locaisUf.set(uf, fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/locais/${uf}.json`).then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
+    locaisUf.set(uf, fetch(`${process.env.LOCAIS_URL ?? (process.env.NEXT_PUBLIC_BASE_PATH ?? "") + "/locais"}/${uf}.json`).then((r) => (r.ok ? r.json() : {})).catch(() => ({})));
   return locaisUf.get(uf)!;
 }
 
 // ---------- secoes publicadas (config "cs" do pleito, por UF) ----------
 type Cs = { abr: { mu: { cd: string; nm: string; zon: { cd: string; sec: { ns: string; da?: string }[] }[] }[] }[] };
 const csCache = new Map<string, { em: number; p: Promise<Cs> }>();
-function configSecoes(turno: number, uf: string) {
+function configSecoes(turno: number, uf: string, idadeMax = 8000) {
   const k = `${turno}-${uf}`;
   const c = csCache.get(k);
-  if (c && Date.now() - c.em < 8000) return c.p;
+  if (c && Date.now() - c.em < idadeMax) return c.p;
   const p = TURNOS[turno].pleito;
   const prom = json<Cs>(`${BASE}/${CICLO}/arquivo-urna/${p}/config/${uf}/${uf}-p${p.padStart(6, "0")}-cs.json`);
   csCache.set(k, { em: Date.now(), p: prom });
@@ -48,7 +48,8 @@ async function baixarBU(turno: number, uf: string, mun: string, zona: string, ns
 
 // Fila unica de downloads: varias telas/municipios pedindo BUs ao mesmo tempo nao abrem
 // centenas de conexoes; o municipio aberto na tela tem prioridade sobre a soma do estado.
-const LIMITE = 32;
+// no servidor (VPS) pode ser bem maior; no navegador fica baixo para nao estourar o limite do TSE
+const LIMITE = Number(process.env.BU_SIMULTANEOS) || 16;
 const fila: { k: string; urgente: boolean; rodar: () => Promise<void> }[] = [];
 const naFila = new Set<string>();
 let ativos = 0;
@@ -105,18 +106,18 @@ function acumular(s: Soma, bu: Secao) {
 }
 
 /** Acima disso o total oficial do TSE ja estara andando; nao vale baixar o estado inteiro no navegador. */
-export const MAX_URNAS_ESTADO = 6000;
+export const MAX_URNAS_ESTADO = Number(process.env.MAX_URNAS_ESTADO) || 6000;
 
 /**
  * Soma dos BUs liberados no estado inteiro e por municipio. Retorna `null` quando ha urnas
  * demais para baixar no navegador (nesse ponto o total oficial do TSE ja deve estar em dia).
  */
-export async function somaDoEstado(turno: number, uf: string) {
-  const cs = await configSecoes(turno, uf);
+export async function somaDoEstado(turno: number, uf: string, op: { idadeMax?: number; limite?: number; baixar?: boolean } = {}) {
+  const cs = await configSecoes(turno, uf, op.idadeMax);
   const muns = cs.abr.flatMap((a) => a.mu);
   const liberadas = muns.reduce((n, m) => n + m.zon.reduce((k, z) => k + z.sec.filter((s) => s.da).length, 0), 0);
   const totalSecoes = muns.reduce((n, m) => n + m.zon.reduce((k, z) => k + z.sec.length, 0), 0);
-  if (liberadas > MAX_URNAS_ESTADO) return null;
+  if (liberadas > (op.limite ?? MAX_URNAS_ESTADO)) return null;
 
   const total = somaVazia();
   const porMun: Record<string, Soma> = {};
@@ -130,9 +131,15 @@ export async function somaDoEstado(turno: number, uf: string) {
       acumular(total, bu);
       acumular((porMun[m.cd] ??= somaVazia()), bu);
     }
-    coletar(turno, uf, m.cd, pend, false);
+    if (op.baixar !== false) coletar(turno, uf, m.cd, pend, false);
   }
   return { total, porMun, liberadas, totalSecoes, coletando: total.lidas < liberadas };
+}
+
+/** Urnas liberadas no estado, sem baixar nenhum boletim. */
+export async function liberadasNoEstado(turno: number, uf: string, idadeMax?: number) {
+  const cs = await configSecoes(turno, uf, idadeMax);
+  return cs.abr.flatMap((a) => a.mu).reduce((n, m) => n + m.zon.reduce((k, z) => k + z.sec.filter((s) => s.da).length, 0), 0);
 }
 
 export async function escolasDoMunicipio(turno: number, uf: string, mun: string) {

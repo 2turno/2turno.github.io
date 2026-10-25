@@ -5,7 +5,7 @@ import Totais from "@/components/Totais";
 import BarraDupla from "@/components/BarraDupla";
 import MapaEscolas from "@/components/MapaEscolas";
 import { Aviso, Migalhas, Rodape, Topo, comTurno, useAoVivo, useParametros, useTurno } from "@/components/aoVivo";
-import { municipio } from "@/lib/cliente";
+import { municipio } from "@/lib/fonte";
 import { CORES, NOMES_UF, fmt, fmtPct } from "@/components/fmt";
 import type { Escola } from "@/lib/secoes";
 import type { Resumo } from "@/lib/tse";
@@ -80,7 +80,7 @@ export default function PaginaMunicipio() {
           )}
         </header>
 
-        {erro && <Aviso>Falha ao consultar o TSE ({erro}). Tentando de novo…</Aviso>}
+        {erro && !dados && <Aviso>Falha ao consultar o TSE ({erro}). Tentando de novo…</Aviso>}
         {!dados && !erro && <p className="py-24 font-serif text-3xl italic text-[var(--mudo)]">Carregando boletins de urna…</p>}
 
         {r && dados && (

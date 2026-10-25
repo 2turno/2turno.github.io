@@ -8,12 +8,12 @@ import BarraDupla from "@/components/BarraDupla";
 import Corrida, { type Ponto } from "@/components/Corrida";
 import { Aviso, Rodape, Topo, comTurno, useAoVivo, useTurno } from "@/components/aoVivo";
 import { CORES, HEX, NOMES_UF, fmt, fmtPct } from "@/components/fmt";
-import type { Apuracao, Resumo } from "@/lib/tse";
-import { apuracao } from "@/lib/cliente";
+import type { Resumo } from "@/lib/tse";
+import { brasil } from "@/lib/fonte";
 
 export default function Home() {
   const turno = useTurno();
-  const { dados, erro } = useAoVivo<Apuracao>(turno ? `br-${turno}` : null, () => apuracao(turno!));
+  const { dados, erro } = useAoVivo<Awaited<ReturnType<typeof brasil>>>(turno ? `br-${turno}` : null, () => brasil(turno!), 5000);
   const [sel, setSel] = useState("br");
   const [modo, setModo] = useState<"geo" | "blocos">("geo");
   const [ordem, setOrdem] = useState<"eleitorado" | "margem" | "nome">("eleitorado");
@@ -82,7 +82,7 @@ export default function Home() {
           )}
         </header>
 
-        {erro && <Aviso>Falha ao consultar o TSE ({erro}). Nova tentativa em instantes.</Aviso>}
+        {erro && !dados && <Aviso>Falha ao consultar o TSE ({erro}). Nova tentativa em instantes.</Aviso>}
         {dados?.aguardando && (
           <Aviso>
             O TSE ainda não divulgou a primeira parcial deste turno. A página se atualiza sozinha.{" "}
@@ -98,7 +98,9 @@ export default function Home() {
               <div className="mt-9 flex flex-wrap justify-between gap-x-6 gap-y-1 font-mono text-xs text-[var(--mudo)] sm:text-sm">
                 <span>Diferença: <b className="text-[var(--tinta)]">{fmt(dif)}</b> votos</span>
                 <span>Estados: <b style={{ color: CORES[0] }}>{vencidos[0]}</b> × <b style={{ color: CORES[1] }}>{vencidos[1]}</b></span>
-                <span>{br.pst > 0 ? `Divulgação TSE: ${br.atualizado}` : "Aguardando a primeira totalização do TSE"}</span>
+                {dados!.peloBU
+                  ? <span className="font-bold text-[#f5c518]">Parcial pela soma de {fmt(dados!.urnasLidas)} urnas já lidas · total oficial do TSE ainda não atualizado</span>
+                  : <span>{br.pst > 0 ? `Divulgação TSE: ${br.atualizado}` : "Aguardando a primeira totalização do TSE"}</span>}
               </div>
               <div className="mt-6"><Totais r={br} colunas={6} /></div>
             </section>
@@ -121,6 +123,11 @@ export default function Home() {
                 </div>
                 <Mapa ufs={dados!.ufs} selecionada={sel} onSelecionar={setSel} modo={modo} />
                 <Legenda nomes={nomes} />
+                {dados!.ufsPeloBU.length > 0 && (
+                  <p className="mt-2 font-serif text-xs font-bold uppercase text-[#f5c518]">
+                    {dados!.ufsPeloBU.length} {dados!.ufsPeloBU.length === 1 ? "estado mostra" : "estados mostram"} a soma de {fmt(dados!.urnasLidas)} urnas já lidas (o TSE ainda não atualizou o total oficial deles)
+                  </p>
+                )}
               </section>
 
               <aside className="flex flex-col gap-4">

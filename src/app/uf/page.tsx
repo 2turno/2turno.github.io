@@ -5,9 +5,9 @@ import Placar from "@/components/Placar";
 import Totais from "@/components/Totais";
 import BarraDupla from "@/components/BarraDupla";
 import { Aviso, Migalhas, Rodape, Topo, comTurno, useAoVivo, useParametros, useTurno } from "@/components/aoVivo";
-import { apuracao, municipiosUf } from "@/lib/cliente";
+import { estado } from "@/lib/fonte";
 import { CORES, NOMES_UF, fmt, fmtPct } from "@/components/fmt";
-import type { Apuracao, Resumo } from "@/lib/tse";
+import type { Resumo } from "@/lib/tse";
 
 type Ordem = "eleitorado" | "margem" | "a" | "b" | "abst" | "nome";
 
@@ -16,12 +16,12 @@ export default function PaginaUf() {
   const uf = params?.get("uf") ?? "";
   const turno = useTurno();
   const pronto = turno && uf ? `${turno}-${uf}` : null;
-  const geral = useAoVivo<Apuracao>(pronto, () => apuracao(turno!));
-  const muns = useAoVivo<Awaited<ReturnType<typeof municipiosUf>>>(pronto, () => municipiosUf(turno!, uf), 5000);
+  const muns = useAoVivo<Awaited<ReturnType<typeof estado>>>(pronto, () => estado(turno!, uf), 5000);
+  const geral = { erro: null as string | null };
   const [busca, setBusca] = useState("");
   const [ordem, setOrdem] = useState<Ordem>("eleitorado");
 
-  const resumo = muns.dados?.estado ?? geral.dados?.ufs[uf];
+  const resumo = muns.dados?.estado ?? undefined;
   const d = muns.dados;
   const nomes = resumo?.cand.map((c) => c.nm) ?? [];
 
@@ -61,7 +61,7 @@ export default function PaginaUf() {
         {d?.grande && d.liberadas > 0 && resumo?.pst === 0 && (
           <Aviso>O TSE já liberou {fmt(d.liberadas)} urnas deste estado, mas ainda não atualizou o total oficial. Abra um município para ver a soma das urnas.</Aviso>
         )}
-        {(geral.erro || muns.erro) && <Aviso>Falha ao consultar o TSE ({geral.erro ?? muns.erro}). Tentando de novo…</Aviso>}
+        {(geral.erro || muns.erro) && !muns.dados && <Aviso>Falha ao consultar o TSE ({geral.erro ?? muns.erro}). Tentando de novo…</Aviso>}
 
         {resumo && (
           <section className="painel mt-4 p-5 sm:p-8">
