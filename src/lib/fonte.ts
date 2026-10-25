@@ -1,7 +1,7 @@
 // De onde as telas pegam os dados: primeiro o servidor (que ja tem o pais inteiro somado);
 // se ele nao responder, o proprio navegador busca no TSE (modo antigo, com limite de urnas).
 import * as local from "./cliente";
-import { calcularPrevisao, registrar, type Ponto, type Previsao } from "./previsao";
+import { prever, registrar, type Ponto, type Previsao } from "./previsao";
 
 const serieLocal: Ponto[] = [];
 type Brasil = Awaited<ReturnType<typeof local.apuracaoComUrnas>> & { previsao?: Previsao | null; serie?: Ponto[] };
@@ -40,7 +40,8 @@ export const brasil = (turno: number) =>
   doServidor<Brasil>(`/api/brasil?x=1${q(turno)}`, async () => {
     const a = await local.apuracaoComUrnas(turno);
     if (turno !== 2) return a;
-    const previsao = calcularPrevisao(a);
+    const t1 = await local.apuracao(1).catch(() => null);
+    const previsao = t1 ? prever(local.unidadesDosEstados(a, t1)) : null;
     if (previsao) registrar(serieLocal, previsao);
     return { ...a, previsao, serie: [...serieLocal] };
   });

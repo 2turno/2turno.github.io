@@ -56,7 +56,7 @@ export default function Previsao({ previsao, serie, cand }: Props) {
     if (aba === "votos") {
       const vals = pts.flatMap((p) => [p.li, p.ls, 100 - p.li, 100 - p.ls]);
       const amp = Math.max(4, ...vals.map((v) => Math.abs(v - 50))) + 1;
-      lo = 50 - amp; hi = 50 + amp;
+      lo = Math.max(0, 50 - amp); hi = Math.min(100, 50 + amp);
     }
     const y = (v: number) => M.t + (1 - (v - lo) / (hi - lo)) * (H - M.t - M.b);
     const sA = aba === "chance" ? (p: Ponto) => p.probA : (p: Ponto) => p.pA;
@@ -194,7 +194,7 @@ export default function Previsao({ previsao, serie, cand }: Props) {
       </div>
 
       <p className="mt-3 font-serif text-xs font-semibold uppercase leading-snug text-[var(--mudo)]">
-        Modelo estatístico só com dados do 2º turno: projeta as urnas que faltam a partir das já apuradas em cada estado e no país.
+        Projeção: cada cidade é comparada com ela mesma no 1º turno; as urnas que faltam seguem o 1º turno da cidade mais a mudança já medida ali, no estado e no país.
         {previsao && <> Faixa de erro da projeção: {fmtPct(previsao.li, 1)} a {fmtPct(previsao.ls, 1)}.</>} Não é resultado oficial.
       </p>
     </section>

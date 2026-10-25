@@ -1,9 +1,39 @@
 // Servidor da apuracao (roda na VPS): baixa os boletins do TSE uma unica vez, em segundo plano,
 // e entrega as somas prontas para todos os visitantes do site estatico.
+import fs from "node:fs";
 import http from "node:http";
-import { apuracaoComUrnas, municipio, municipiosUf } from "../src/lib/cliente";
+import { apuracao, apuracaoComUrnas, baseDoEstado1T, definirCandidatos, municipio, municipiosUf, unidadeDoEstado, unidadesDoEstado, type Base } from "../src/lib/cliente";
 import { UFS, velocidade } from "../src/lib/tse";
-import { calcularPrevisao, registrar, type Ponto } from "../src/lib/previsao";
+import { prever, registrar, type Ponto, type Unidade } from "../src/lib/previsao";
+
+// base do 1o turno por municipio (nao muda mais): baixada uma vez e guardada em disco
+const ARQ_BASE = process.env.ARQ_BASE ?? "base-1turno.json";
+const base: Record<string, Base> = fs.existsSync(ARQ_BASE) ? JSON.parse(fs.readFileSync(ARQ_BASE, "utf8")) : {};
+async function carregarBase() {
+  for (const uf of UFS) {
+    if (base[uf]) continue;
+    const b = await baseDoEstado1T(uf).catch(() => null);
+    if (b) {
+      base[uf] = b;
+      fs.writeFileSync(ARQ_BASE, JSON.stringify(base));
+      console.log(`base do 1º turno: ${uf.toUpperCase()} pronta (${Object.keys(b).length} municípios)`);
+    }
+  }
+  if (UFS.some((uf) => !base[uf])) setTimeout(carregarBase, 30_000);
+}
+carregarBase();
+
+/** Municipios onde a base do estado esta pronta; o resto entra como um bloco por estado. */
+async function unidades(a: Awaited<ReturnType<typeof apuracaoComUrnas>>): Promise<Unidade[]> {
+  const t1 = await apuracao(1);
+  if (a.br) definirCandidatos(a.br.cand.map((c) => c.n));
+  const listas = await Promise.all(UFS.map(async (uf) => {
+    const porMun = base[uf] ? await unidadesDoEstado(uf, base[uf]).catch(() => null) : null;
+    if (porMun) return porMun;
+    return a.ufs[uf] && t1.ufs[uf] ? [unidadeDoEstado(uf, a.ufs[uf], t1.ufs[uf])] : [];
+  }));
+  return listas.flat();
+}
 
 // serie da previsao ao longo da noite (2o turno), igual para todos os visitantes
 const serie: Ponto[] = [];
@@ -38,7 +68,7 @@ async function responder(url: URL): Promise<[number, unknown]> {
       return [200, await emCache(`br-${turno}`, 3000, async () => {
         const a = await apuracaoComUrnas(turno);
         if (turno !== 2) return a;
-        const p = calcularPrevisao(a);
+        const p = prever(await unidades(a));
         if (p) registrar(serie, p);
         return { ...a, previsao: p, serie };
       })];

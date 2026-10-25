@@ -2,12 +2,14 @@
 import { buscarApuracao, buscarMunicipios, municipiosDaUf, resultadoMunicipio, type Apuracao, type Resumo } from "./tse";
 import { escolasDoMunicipio, liberadasNoEstado, somaDoEstado, urnasPorMunicipio, type Escola, type Soma } from "./secoes";
 import { UFS } from "./tse";
+import type { Unidade } from "./previsao";
 
 // evita repetir a consulta nacional quando varias telas pedem o mesmo dado em sequencia
 const cache = new Map<number, { em: number; p: Promise<Apuracao> }>();
 export function apuracao(turno: number) {
   const c = cache.get(turno);
-  if (c && Date.now() - c.em < 4000) return c.p;
+  // o 1o turno ja acabou: pode ficar guardado por uma hora
+  if (c && Date.now() - c.em < (turno === 1 ? 3600_000 : 4000)) return c.p;
   const p = buscarApuracao(turno);
   cache.set(turno, { em: Date.now(), p });
   p.catch(() => cache.delete(turno));
@@ -150,4 +152,47 @@ export async function municipio(turno: number, uf: string, mun: string) {
   const urnas = somaDasUrnas(oficial, secoes.escolas, secoes.lidas, secoes.totalSecoes);
   const peloBU = urnas.comparecimento > oficial.comparecimento;
   return { resumo: peloBU ? urnas : oficial, fonte: peloBU ? ("urnas" as const) : ("oficial" as const), ...secoes, consultadoEm: new Date().toISOString() };
+}
+
+// ---------- dados para a previsao ----------
+const validos = (r: Resumo) => Math.max(0, r.comparecimento - r.brancos - r.nulos);
+const fracaoA = (r: Resumo) => {
+  const a = r.cand[0]?.vap ?? 0, b = r.cand[1]?.vap ?? 0;
+  return a + b ? a / (a + b) : 0.5;
+};
+
+/** Uma unidade por estado (usada no navegador ou enquanto a base municipal nao esta pronta). */
+export function unidadeDoEstado(uf: string, atual: Resumo, t1: Resumo): Unidade {
+  const a = atual.cand[0]?.vap ?? 0, n = a + (atual.cand[1]?.vap ?? 0);
+  return { uf, p: fracaoA(t1), E: validos(t1), a, n, f: Math.min(1, atual.pst / 100) };
+}
+
+export function unidadesDosEstados(atual: Apuracao, t1: Apuracao): Unidade[] {
+  return UFS.filter((uf) => atual.ufs[uf] && t1.ufs[uf]).map((uf) => unidadeDoEstado(uf, atual.ufs[uf], t1.ufs[uf]));
+}
+
+/** Base do 1o turno por municipio: fracao de A e votos validos. */
+export type Base = Record<string, { p: number; E: number }>;
+export async function baseDoEstado1T(uf: string): Promise<Base | null> {
+  const lista = await buscarMunicipios(1, uf);
+  const ok = lista.filter((m) => m.comparecimento > 0);
+  if (ok.length < lista.length) return null; // incompleta: tenta de novo depois
+  return Object.fromEntries(ok.map((m) => [m.cd!, { p: fracaoA(m), E: validos(m) }]));
+}
+
+/** Uma unidade por municipio, com os boletins do 2o turno ja lidos. */
+export async function unidadesDoEstado(uf: string, base: Base): Promise<Unidade[] | null> {
+  const [soma, urnas] = await Promise.all([somaDoEstado(2, uf, { idadeMax: 8000 }), urnasPorMunicipio(2, uf)]);
+  if (!soma) return null;
+  return Object.entries(base).map(([cd, b]) => {
+    const s = soma.porMun[cd];
+    const a = s?.votos[TURNO2_A] ?? 0, n = a + (s?.votos[TURNO2_B] ?? 0);
+    const tot = urnas[cd]?.total ?? 0;
+    return { uf, p: b.p, E: b.E, a, n, f: tot ? (s?.lidas ?? 0) / tot : 0 };
+  });
+}
+// numeros dos dois candidatos do 2o turno (ordem fixa: menor numero = A)
+let TURNO2_A = "13", TURNO2_B = "22";
+export function definirCandidatos(numeros: string[]) {
+  if (numeros.length === 2) [TURNO2_A, TURNO2_B] = numeros;
 }
