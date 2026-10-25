@@ -96,3 +96,50 @@ export function AvisoPausa() {
     </div>
   );
 }
+
+/** Cartoes grandes por regiao: %, votos, lider, diferenca, urnas e estados vencidos. */
+export function Regioes({ ufs, cand }: { ufs: Record<string, Resumo>; cand: Resumo["cand"] }) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {REGIOES.map((g) => {
+        const s = somarRegiao(ufs, g.ufs);
+        const tem = s.va + s.vb > 0;
+        const lider = s.va >= s.vb ? 0 : 1;
+        const venc = [0, 0];
+        for (const u of g.ufs) {
+          const r = ufs[u];
+          const a = r?.cand[0]?.vap ?? 0, b = r?.cand[1]?.vap ?? 0;
+          if (a + b > 0) venc[a >= b ? 0 : 1]++;
+        }
+        return (
+          <div key={g.nome} className="painel p-4" style={tem ? { borderTop: `4px solid ${CORES[lider]}` } : undefined}>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-serif text-2xl font-extrabold uppercase leading-none">{g.nome}</span>
+              <span className="font-serif text-xs font-bold uppercase text-[var(--mudo)]">{tem ? `${fmtPct(s.pst)} das urnas` : "sem urna ainda"}</span>
+            </div>
+            {tem ? (
+              <>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {[0, 1].map((i) => (
+                    <div key={i} className={i ? "text-right" : ""}>
+                      <div className="truncate font-serif text-sm font-bold uppercase" style={{ color: CORES[i] }}>{cand[i]?.nm}</div>
+                      <div className={`font-serif font-extrabold leading-none ${i === lider ? "text-4xl" : "text-3xl text-[var(--mudo)]"}`}>{fmtPct(s.cand[i].pvap)}</div>
+                      <div className="font-serif text-xs font-semibold text-[var(--mudo)]">{fmt(i ? s.vb : s.va)} votos</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3"><BarraDupla r={s} alta="h-2.5" /></div>
+                <div className="mt-2 flex flex-wrap justify-between gap-x-3 font-serif text-xs font-bold uppercase text-[var(--mudo)]">
+                  <span><span style={{ color: CORES[lider] }}>{cand[lider]?.nm}</span> +{fmt(Math.abs(s.va - s.vb))} votos</span>
+                  {g.ufs.length > 1 && <span>Estados: <span style={{ color: CORES[0] }}>{venc[0]}</span> × <span style={{ color: CORES[1] }}>{venc[1]}</span></span>}
+                </div>
+              </>
+            ) : (
+              <div className="mt-3"><BarraDupla r={s} alta="h-2.5" /></div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}

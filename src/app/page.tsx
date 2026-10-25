@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Mapa, { type Pintar } from "@/components/Mapa";
 import Placar from "@/components/Placar";
 import Totais from "@/components/Totais";
-import { AvisoPausa, LinhaStatus, PorRegiao, Vantagem } from "@/components/Disputa";
+import { AvisoPausa, LinhaStatus, Regioes, Vantagem } from "@/components/Disputa";
 import LinhaDoTempo from "@/components/LinhaDoTempo";
 import { reconstruir, type Foto } from "@/lib/linhaTempo";
 import BarraDupla from "@/components/BarraDupla";
@@ -137,6 +137,16 @@ export default function Home() {
               <div className="mt-6"><Totais r={br} colunas={6} /></div>
             </section>
 
+            <section className="mt-4">
+              <div className="mb-3 flex items-end justify-between gap-2 px-1">
+                <div>
+                  <div className="rotulo">Por região</div>
+                  <h2 className="font-serif text-3xl font-extrabold">Resultado em cada região</h2>
+                </div>
+              </div>
+              <Regioes ufs={dados!.ufs} cand={br.cand} />
+            </section>
+
             <div className="mt-4 grid gap-4 lg:grid-cols-[1.5fr_1fr]">
               <section className="painel p-3 sm:p-5">
                 <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -197,10 +207,6 @@ export default function Home() {
                       )}
                     </>
                   ) : <p className="mt-4 font-serif text-lg italic text-[var(--mudo)]">Sem dados para este estado ainda.</p>}
-                </section>
-
-                <section className="painel p-5">
-                  <PorRegiao ufs={dados!.ufs} />
                 </section>
 
                 <section className="painel p-5">
