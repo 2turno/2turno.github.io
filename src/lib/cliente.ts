@@ -86,7 +86,8 @@ export async function apuracaoComUrnas(turno: number): Promise<Apuracao & { pelo
       nulos: soma((r) => r.nulos),
     },
     aguardando: false,
-    peloBU: true,
+    // so e "pelas urnas" se algum estado usou boletins; senao e a soma dos totais oficiais dos estados
+    peloBU: ufsPeloBU.length > 0,
     ufsPeloBU,
     urnasLidas,
   };
