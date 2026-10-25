@@ -14,7 +14,7 @@ const hhmm = (t: number) => {
 /**
  * Controle de "replay" da noite. `onMomento(null)` = ao vivo; `onMomento(foto)` = mostra aquele horario.
  */
-export default function LinhaDoTempo({ cand, onMomento }: { cand: Candidato[]; onMomento: (f: Foto | null) => void }) {
+export default function LinhaDoTempo({ cand, onMomento, onFotos }: { cand: Candidato[]; onMomento: (f: Foto | null) => void; onFotos?: (f: Foto[]) => void }) {
   const [fotos, setFotos] = useState<Foto[]>([]);
   const [i, setI] = useState<number | null>(null); // null = agora
   const [tocando, setTocando] = useState(false);
@@ -55,6 +55,7 @@ export default function LinhaDoTempo({ cand, onMomento }: { cand: Candidato[]; o
   }, [tocando, vel, fotos]);
 
   useEffect(() => onMomento(i === null ? null : fotos[i] ?? null), [i, fotos]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => onFotos?.(fotos), [fotos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (fotos.length < 2) return null;
   const atual = i === null ? fotos[fotos.length - 1] : fotos[i];

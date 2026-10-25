@@ -33,6 +33,18 @@ export default function Home() {
   const [pintar, setPintar] = useState<Pintar>("margem");
   const [ordem, setOrdem] = useState<"eleitorado" | "margem" | "nome">("eleitorado");
   const [historico, setHistorico] = useState<Ponto[]>([]);
+  const [fotos, setFotos] = useState<Foto[]>([]);
+  // curva da noite inteira a partir da linha do tempo do servidor (so avancos de apuracao)
+  const curva = useMemo(() => {
+    const pts: Ponto[] = [];
+    for (const f of fotos) {
+      const l = f.d.br;
+      if (!l || l[0] + l[1] === 0) continue;
+      const p = { pst: l[2], a: (l[0] / (l[0] + l[1])) * 100 };
+      if (!pts.length || p.pst > pts[pts.length - 1].pst) pts.push(p);
+    }
+    return pts.length >= 2 ? pts : historico;
+  }, [fotos, historico]);
 
   // curva da corrida: um ponto a cada nova parcial
   useEffect(() => {
@@ -98,7 +110,7 @@ export default function Home() {
         </header>
 
         {turno === 2 && <AvisoPausa />}
-        {turno === 2 && aoVivo?.br && <LinhaDoTempo cand={aoVivo.br.cand} onMomento={setMomento} />}
+        {turno === 2 && aoVivo?.br && <LinhaDoTempo cand={aoVivo.br.cand} onMomento={setMomento} onFotos={setFotos} />}
         {erro && !dados && <Aviso>Falha ao consultar o TSE ({erro}). Nova tentativa em instantes.</Aviso>}
         {dados?.aguardando && (
           <Aviso>
@@ -194,7 +206,7 @@ export default function Home() {
                 <section className="painel p-5">
                   <div className="rotulo">A corrida</div>
                   <h2 className="mb-4 font-serif text-3xl">Como a vantagem evoluiu</h2>
-                  <Corrida pontos={historico} nomes={nomes} />
+                  <Corrida pontos={curva} nomes={nomes} />
                 </section>
               </aside>
             </div>

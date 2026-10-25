@@ -10,14 +10,25 @@ export default function Corrida({ pontos, nomes }: { pontos: Ponto[]; nomes: str
 
   const vals = pontos.map((p) => p.a);
   const amp = Math.max(2, ...vals.map((v) => Math.abs(v - 50))) * 1.2;
-  const x = (pst: number) => P + (pst / 100) * (W - 2 * P);
+  // eixo X acompanha o trecho ja apurado (ex.: 1,5% a 11%), senao a curva fica espremida no inicio
+  const x0 = pontos[0].pst, x1 = Math.max(pontos[pontos.length - 1].pst, x0 + 0.5);
+  const x = (pst: number) => P + ((pst - x0) / (x1 - x0)) * (W - 2 * P);
   const y = (v: number) => H / 2 - ((v - 50) / amp) * (H / 2 - P);
   const linha = pontos.map((p, i) => `${i ? "L" : "M"}${x(p.pst).toFixed(1)},${y(p.a).toFixed(1)}`).join("");
   const ult = pontos[pontos.length - 1];
   const area = `${linha}L${x(ult.pst)},${H / 2}L${x(pontos[0].pst)},${H / 2}Z`;
 
+  const ini = pontos[0];
   return (
     <div>
+      <div className="mb-3 flex flex-wrap justify-between gap-x-4 font-serif text-sm font-bold uppercase">
+        <span>
+          {nomes[0]}: <span style={{ color: HEX[0] }}>{fmtPct(ini.a)}</span> → <span style={{ color: HEX[0] }}>{fmtPct(ult.a)}</span>
+        </span>
+        <span>
+          {nomes[1]}: <span style={{ color: HEX[1] }}>{fmtPct(100 - ini.a)}</span> → <span style={{ color: HEX[1] }}>{fmtPct(100 - ult.a)}</span>
+        </span>
+      </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full overflow-visible">
         <defs>
           <clipPath id="cima"><rect x="0" y="0" width={W} height={H / 2} /></clipPath>
@@ -31,7 +42,7 @@ export default function Corrida({ pontos, nomes }: { pontos: Ponto[]; nomes: str
       </svg>
       <div className="mt-2 flex justify-between font-mono text-[11px] text-[var(--mudo)]">
         <span>▲ {nomes[0]}</span>
-        <span>{fmtPct(ult.pst, 1)} apurado</span>
+        <span>{fmtPct(x0, 1)} → {fmtPct(ult.pst, 1)} apurado</span>
         <span>{nomes[1]} ▼</span>
       </div>
     </div>
