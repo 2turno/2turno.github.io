@@ -6,6 +6,7 @@ import Placar from "@/components/Placar";
 import Totais from "@/components/Totais";
 import BarraDupla from "@/components/BarraDupla";
 import Corrida, { type Ponto } from "@/components/Corrida";
+import Previsao from "@/components/Previsao";
 import { Aviso, Rodape, Topo, comTurno, useAoVivo, useTurno } from "@/components/aoVivo";
 import { CORES, HEX, NOMES_UF, fmt, fmtPct } from "@/components/fmt";
 import type { Resumo } from "@/lib/tse";
@@ -104,6 +105,8 @@ export default function Home() {
               </div>
               <div className="mt-6"><Totais r={br} colunas={6} /></div>
             </section>
+
+            {turno === 2 && <Previsao previsao={dados!.previsao} serie={dados!.serie ?? []} cand={br.cand} />}
 
             <div className="mt-4 grid gap-4 lg:grid-cols-[1.5fr_1fr]">
               <section className="painel p-3 sm:p-5">

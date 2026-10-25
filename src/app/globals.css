@@ -52,4 +52,6 @@ body {
 .brilho { position: relative; overflow: hidden; }
 .brilho::after { content: ""; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, #ffffff30, transparent); animation: brilho 3.5s ease-in-out infinite; }
 
+@keyframes desenhar { from { stroke-dashoffset: 1 } to { stroke-dashoffset: 0 } }
+
 @media (prefers-reduced-motion: reduce) { .ticker, .piscar, .brilho::after { animation: none; } }

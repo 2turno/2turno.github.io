@@ -3,6 +3,10 @@
 import http from "node:http";
 import { apuracaoComUrnas, municipio, municipiosUf } from "../src/lib/cliente";
 import { UFS, velocidade } from "../src/lib/tse";
+import { calcularPrevisao, registrar, type Ponto } from "../src/lib/previsao";
+
+// serie da previsao ao longo da noite (2o turno), igual para todos os visitantes
+const serie: Ponto[] = [];
 
 const PORTA = Number(process.env.PORTA) || 4100;
 const ORIGENS = (process.env.ORIGENS ?? "https://2turno.github.io").split(",");
@@ -31,7 +35,13 @@ async function responder(url: URL): Promise<[number, unknown]> {
   const mun = url.searchParams.get("mun") ?? "";
   switch (url.pathname) {
     case "/api/brasil":
-      return [200, await emCache(`br-${turno}`, 3000, () => apuracaoComUrnas(turno))];
+      return [200, await emCache(`br-${turno}`, 3000, async () => {
+        const a = await apuracaoComUrnas(turno);
+        if (turno !== 2) return a;
+        const p = calcularPrevisao(a);
+        if (p) registrar(serie, p);
+        return { ...a, previsao: p, serie };
+      })];
     case "/api/uf":
       if (!UFS.includes(uf)) return [400, { erro: "UF inválida" }];
       return [200, await emCache(`uf-${turno}-${uf}`, 3000, () => municipiosUf(turno, uf))];
@@ -67,7 +77,7 @@ http
 // Coleta continua do 2o turno no pais inteiro, mesmo sem ninguem com a pagina aberta.
 async function aquecer() {
   try {
-    const a = await emCache("br-2", 3000, () => apuracaoComUrnas(2));
+    const a = await responder(new URL("http://x/api/brasil")).then(([, v]) => v as Awaited<ReturnType<typeof apuracaoComUrnas>>);
     console.log(`${new Date().toLocaleTimeString("pt-BR")} urnas lidas: ${a.urnasLidas} · estados pelas urnas: ${a.ufsPeloBU.length} · ${velocidade().porSegundo} pedidos/s ao TSE (${velocidade().bloqueios} bloqueios) · memória ${Math.round(process.memoryUsage().rss / 1e6)} MB`);
   } catch (e) {
     console.error("falha ao aquecer:", e);
