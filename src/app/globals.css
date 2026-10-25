@@ -18,7 +18,10 @@
   --urgente: #e3262b;
 }
 
-html { background: var(--papel); }
+html { background: var(--papel); overflow-x: clip; }
+body { overflow-x: clip; }
+/* itens de grid/flex podem encolher: sem isso textos com "…" alargam a pagina no celular */
+.grid > *, .flex > * { min-width: 0; }
 body {
   background:
     radial-gradient(900px 500px at 0% 0%, color-mix(in srgb, var(--a) 22%, transparent), transparent 70%),

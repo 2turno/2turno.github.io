@@ -63,7 +63,7 @@ export default function Home() {
         <header className="mt-6 grid items-stretch gap-0 lg:grid-cols-[1fr_auto]">
           <div className="painel border-l-8 !border-l-[var(--urgente)] px-5 py-4">
             <div className="rotulo mb-1">Eleições 2026 · Presidente da República · {turno === 1 ? "1º" : "2º"} turno</div>
-            <h1 className="font-serif text-4xl font-extrabold leading-[.95] sm:text-6xl">
+            <h1 className="break-words font-serif text-3xl font-extrabold leading-[.95] sm:text-6xl">
               {br && lider >= 0 ? (
                 br.cand[lider].eleito ? <>{br.cand[lider].nm} <span className="text-[#16c172]">é eleito</span></> : <>{br.cand[lider].nm} <span className="text-[var(--mudo)]">lidera a apuração</span></>
               ) : (
@@ -74,7 +74,7 @@ export default function Home() {
           {br && (
             <div className="flex flex-col justify-center bg-white px-6 py-4 text-black lg:min-w-72 lg:text-right">
               <div className="font-serif text-sm font-bold uppercase tracking-widest text-neutral-500">Seções apuradas</div>
-              <div className="font-serif text-6xl font-extrabold leading-none sm:text-7xl">{fmtPct(br.pst)}</div>
+              <div className="font-serif text-5xl font-extrabold leading-none sm:text-7xl">{fmtPct(br.pst)}</div>
               <div className="mt-2 h-2 w-full bg-neutral-200">
                 <div className="h-full bg-[var(--urgente)] transition-[width] duration-700" style={{ width: `${br.pst}%` }} />
               </div>
@@ -93,7 +93,7 @@ export default function Home() {
 
         {br && (
           <>
-            <section className="painel mt-4 p-5 sm:p-8">
+            <section className="painel mt-4 p-4 sm:p-8">
               <Placar r={br} />
               <div className="mt-9 flex flex-wrap justify-between gap-x-6 gap-y-1 font-mono text-xs text-[var(--mudo)] sm:text-sm">
                 <span>Diferença: <b className="text-[var(--tinta)]">{fmt(dif)}</b> votos</span>
@@ -104,7 +104,7 @@ export default function Home() {
             </section>
 
             <div className="mt-4 grid gap-4 lg:grid-cols-[1.5fr_1fr]">
-              <section className="painel p-5">
+              <section className="painel p-3 sm:p-5">
                 <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                   <div>
                     <div className="rotulo">Mapa</div>

@@ -60,18 +60,18 @@ function trocarTurno(turno: number | null) {
 export function Topo({ erro, consultadoEm, turno }: { erro: string | null; consultadoEm?: string; turno: number | null }) {
   const hoje = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   return (
-    <div className="sticky top-0 z-30 flex items-stretch justify-between border-b border-[var(--linha)] bg-[#04070f]/90 font-serif text-sm font-bold uppercase tracking-wider backdrop-blur sm:text-base">
+    <div className="sticky top-0 z-30 flex items-stretch justify-between border-b border-[var(--linha)] bg-[#04070f]/90 font-serif text-xs font-bold uppercase tracking-wider backdrop-blur sm:text-base">
       <span className="flex items-stretch">
-        <span className={`flex items-center gap-2 px-4 text-white ${erro ? "bg-neutral-600" : "bg-[var(--urgente)]"}`}>
+        <span className={`flex items-center gap-2 px-3 py-2 text-white sm:px-4 ${erro ? "bg-neutral-600" : "bg-[var(--urgente)]"}`}>
           <i className={`inline-block h-2.5 w-2.5 rounded-full bg-white ${erro ? "" : "piscar"}`} />
           {erro ? "Reconectando" : "Ao vivo"}
         </span>
-        <span className="flex items-center bg-white px-4 text-black">Apuração {turno === 1 ? "1º" : "2º"} turno</span>
+        <span className="flex items-center bg-white px-3 text-black sm:px-4">{turno === 1 ? "1º" : "2º"} turno</span>
       </span>
       <span className="hidden items-center text-[var(--mudo)] lg:flex">{hoje}</span>
-      <span className="flex items-center gap-4 px-4">
+      <span className="flex items-center gap-3 px-3 sm:gap-4 sm:px-4">
         <a href={trocarTurno(turno)} className="text-[var(--mudo)] transition hover:text-white">
-          Ver {turno === 1 ? "2º" : "1º"} turno
+          <span className="hidden sm:inline">Ver </span>{turno === 1 ? "2º" : "1º"} turno
         </a>
         <span className="tabular-nums">{consultadoEm ? new Date(consultadoEm).toLocaleTimeString("pt-BR") : "--:--:--"}</span>
       </span>

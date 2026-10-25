@@ -11,7 +11,7 @@ import type { Escola } from "@/lib/secoes";
 import type { Resumo } from "@/lib/tse";
 
 type Dados = {
-  resumo: Resumo; totalSecoes: number; publicadas: number; lidas: number; coletando: boolean;
+  resumo: Resumo; fonte: "urnas" | "oficial"; totalSecoes: number; publicadas: number; lidas: number; coletando: boolean;
   escolas: Escola[]; consultadoEm: string;
 };
 
@@ -43,7 +43,7 @@ export default function PaginaMunicipio() {
     return (dados?.escolas ?? [])
       .filter((e) => !q || sem(e.nm).includes(q) || sem(e.ba).includes(q) || sem(e.end).includes(q))
       .sort((x, y) =>
-        ordem === "nome" ? x.nm.localeCompare(y.nm) : ordem === "a" ? p(y, 0) - p(x, 0) : ordem === "b" ? p(y, 1) - p(x, 1) : ordem === "abst" ? abst(y) - abst(x) : (y.el || y.aptos) - (x.el || x.aptos),
+        Number(y.secoes.length > 0) - Number(x.secoes.length > 0) || (ordem === "nome" ? x.nm.localeCompare(y.nm) : ordem === "a" ? p(y, 0) - p(x, 0) : ordem === "b" ? p(y, 1) - p(x, 1) : ordem === "abst" ? abst(y) - abst(x) : (y.el || y.aptos) - (x.el || x.aptos)),
       );
   }, [dados, busca, ordem, numeros.join()]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -61,7 +61,7 @@ export default function PaginaMunicipio() {
         <header className="grid gap-4 painel mt-3 border-l-8 !border-l-[var(--urgente)] px-5 py-4 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <div className="rotulo mb-2">Presidente · {turno === 1 ? "1º" : "2º"} turno · {uf.toUpperCase()}</div>
-            <h1 className="font-serif text-5xl capitalize leading-[.9] tracking-tight sm:text-7xl">{r?.nome?.toLowerCase() ?? "…"}</h1>
+            <h1 className="break-words font-serif text-4xl capitalize leading-[.9] tracking-tight sm:text-7xl">{r?.nome?.toLowerCase() ?? "…"}</h1>
           </div>
           {dados && (
             <div className="lg:text-right">
@@ -83,12 +83,14 @@ export default function PaginaMunicipio() {
         {erro && <Aviso>Falha ao consultar o TSE ({erro}). Tentando de novo…</Aviso>}
         {!dados && !erro && <p className="py-24 font-serif text-3xl italic text-[var(--mudo)]">Carregando boletins de urna…</p>}
 
-        {r && (
+        {r && dados && (
           <section className="painel mt-4 p-5 sm:p-8">
             <Placar r={r} />
             <div className="mt-9 flex flex-wrap justify-between gap-x-6 gap-y-1 font-mono text-xs text-[var(--mudo)] sm:text-sm">
               <span>Diferença: <b className="text-[var(--tinta)]">{fmt(Math.abs((r.cand[0]?.vap ?? 0) - (r.cand[1]?.vap ?? 0)))}</b> votos</span>
-              <span>Divulgação TSE: {r.atualizado}</span>
+              {dados.fonte === "urnas"
+                ? <span className="font-bold text-[#f5c518]">Parcial pela soma das urnas já lidas · o total oficial do TSE ainda não foi atualizado</span>
+                : <span>Divulgação TSE: {r.atualizado}</span>}
             </div>
             <div className="mt-6"><Totais r={r} colunas={6} /></div>
           </section>

@@ -58,6 +58,17 @@ function coletar(turno: number, uf: string, mun: string, pendentes: { zona: stri
   }).finally(() => coletando.delete(k));
 }
 
+/** Quantas urnas de cada municipio o TSE ja liberou (um unico arquivo por UF). */
+export async function urnasPorMunicipio(turno: number, uf: string) {
+  const cs = await configSecoes(turno, uf);
+  const out: Record<string, { liberadas: number; total: number }> = {};
+  for (const m of cs.abr.flatMap((a) => a.mu)) {
+    const secs = m.zon.flatMap((z) => z.sec);
+    out[m.cd] = { liberadas: secs.filter((s) => s.da).length, total: secs.length };
+  }
+  return out;
+}
+
 export async function escolasDoMunicipio(turno: number, uf: string, mun: string) {
   const [cs, idx] = await Promise.all([configSecoes(turno, uf), locais(uf)]);
   const m = cs.abr.flatMap((a) => a.mu).find((x) => x.cd === mun);
@@ -94,6 +105,7 @@ export async function escolasDoMunicipio(turno: number, uf: string, mun: string)
     publicadas: secoes.filter((s) => s.publicada).length,
     lidas: secoes.filter((s) => bus.has(chave(s))).length,
     coletando: coletando.has(k),
-    escolas: [...escolas.values()].sort((a, b) => b.aptos - a.aptos || b.el - a.el),
+    // escolas ja apuradas primeiro, depois as maiores
+    escolas: [...escolas.values()].sort((a, b) => Number(b.secoes.length > 0) - Number(a.secoes.length > 0) || b.aptos - a.aptos || b.el - a.el),
   };
 }

@@ -17,7 +17,7 @@ export default function PaginaUf() {
   const turno = useTurno();
   const pronto = turno && uf ? `${turno}-${uf}` : null;
   const geral = useAoVivo<Apuracao>(pronto, () => apuracao(turno!));
-  const muns = useAoVivo<{ municipios: Resumo[]; consultadoEm: string }>(pronto, () => municipiosUf(turno!, uf), 8000);
+  const muns = useAoVivo<{ municipios: Resumo[]; urnas: Record<string, { liberadas: number; total: number }>; consultadoEm: string }>(pronto, () => municipiosUf(turno!, uf), 8000);
   const [busca, setBusca] = useState("");
   const [ordem, setOrdem] = useState<Ordem>("eleitorado");
 
@@ -57,6 +57,11 @@ export default function PaginaUf() {
           <h1 className="font-serif text-5xl leading-[.9] tracking-tight sm:text-7xl">{NOMES_UF[uf]}</h1>
         </header>
 
+        {resumo && resumo.pst === 0 && Object.values(muns.dados?.urnas ?? {}).some((u) => u.liberadas > 0) && (
+          <Aviso>
+            O TSE já liberou boletins de urna deste estado, mas ainda não atualizou o total oficial. Abra um município para ver a soma das urnas já lidas.
+          </Aviso>
+        )}
         {(geral.erro || muns.erro) && <Aviso>Falha ao consultar o TSE ({geral.erro ?? muns.erro}). Tentando de novo…</Aviso>}
 
         {resumo && (
@@ -98,7 +103,7 @@ export default function PaginaUf() {
             </div>
           )}
           <ul>
-            {lista.map((m) => <LinhaMunicipio key={m.cd} m={m} href={comTurno(`/municipio?uf=${uf}&mun=${m.cd}`, turno)} />)}
+            {lista.map((m) => <LinhaMunicipio key={m.cd} m={m} urnas={muns.dados?.urnas[m.cd!]} href={comTurno(`/municipio?uf=${uf}&mun=${m.cd}`, turno)} />)}
           </ul>
           {muns.dados && !lista.length && <p className="py-8 font-serif text-xl italic text-[var(--mudo)]">Nenhum município encontrado.</p>}
         </section>
@@ -109,7 +114,7 @@ export default function PaginaUf() {
   );
 }
 
-function LinhaMunicipio({ m, href }: { m: Resumo; href: string }) {
+function LinhaMunicipio({ m, href, urnas }: { m: Resumo; href: string; urnas?: { liberadas: number; total: number } }) {
   const [a, b] = m.cand;
   const tem = a && b && a.vap + b.vap > 0;
   const pct = (v: number, base: number) => (base ? fmtPct((v / base) * 100, 1) : "—");
@@ -117,7 +122,12 @@ function LinhaMunicipio({ m, href }: { m: Resumo; href: string }) {
     <li>
       <Link href={href}
         className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 border-b border-[var(--linha)] py-3 transition hover:bg-[var(--papel-2)] lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_repeat(5,minmax(0,1fr))]">
-        <span className="truncate font-serif text-lg leading-tight">{m.nome}</span>
+        <span className="min-w-0">
+          <span className="block truncate font-serif text-lg leading-tight">{m.nome}</span>
+          {!tem && !!urnas?.liberadas && (
+            <span className="block font-serif text-xs font-bold uppercase text-[#f5c518]">{fmt(urnas.liberadas)} de {fmt(urnas.total)} urnas liberadas · toque para ver</span>
+          )}
+        </span>
         <span className="order-3 col-span-2 flex items-center gap-2 font-mono text-xs lg:order-none lg:col-span-1">
           <span className="w-12 text-right" style={{ color: CORES[0] }}>{tem ? fmtPct(a.pvap, 1) : "—"}</span>
           <span className="flex-1"><BarraDupla r={m} /></span>
