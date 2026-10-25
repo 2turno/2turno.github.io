@@ -21,7 +21,7 @@ async function carregarBase() {
   }
   if (UFS.some((uf) => !base[uf])) setTimeout(carregarBase, 30_000);
 }
-carregarBase();
+
 
 /** Municipios onde a base do estado esta pronta; o resto entra como um bloco por estado. */
 async function unidades(a: Awaited<ReturnType<typeof apuracaoComUrnas>>): Promise<Unidade[]> {
@@ -68,9 +68,7 @@ async function responder(url: URL): Promise<[number, unknown]> {
       return [200, await emCache(`br-${turno}`, 3000, async () => {
         const a = await apuracaoComUrnas(turno);
         if (turno !== 2) return a;
-        const p = prever(await unidades(a));
-        if (p) registrar(serie, p);
-        return { ...a, previsao: p, serie };
+        return a;
       })];
     case "/api/uf":
       if (!UFS.includes(uf)) return [400, { erro: "UF inválida" }];

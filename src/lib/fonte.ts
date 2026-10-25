@@ -1,10 +1,7 @@
 // De onde as telas pegam os dados: primeiro o servidor (que ja tem o pais inteiro somado);
 // se ele nao responder, o proprio navegador busca no TSE (modo antigo, com limite de urnas).
 import * as local from "./cliente";
-import { prever, registrar, type Ponto, type Previsao } from "./previsao";
-
-const serieLocal: Ponto[] = [];
-type Brasil = Awaited<ReturnType<typeof local.apuracaoComUrnas>> & { previsao?: Previsao | null; serie?: Ponto[] };
+type Brasil = Awaited<ReturnType<typeof local.apuracaoComUrnas>>;
 
 // O endereco do servidor fica em /api.json (publicado com o site), porque o tunel pode mudar de URL.
 let api: Promise<string> | null = null;
@@ -37,14 +34,7 @@ async function doServidor<T>(caminho: string, reserva: () => Promise<T>): Promis
 const q = (turno: number) => (turno === 1 ? "&turno=1" : "");
 
 export const brasil = (turno: number) =>
-  doServidor<Brasil>(`/api/brasil?x=1${q(turno)}`, async () => {
-    const a = await local.apuracaoComUrnas(turno);
-    if (turno !== 2) return a;
-    const t1 = await local.apuracao(1).catch(() => null);
-    const previsao = t1 ? prever(local.unidadesDosEstados(a, t1)) : null;
-    if (previsao) registrar(serieLocal, previsao);
-    return { ...a, previsao, serie: [...serieLocal] };
-  });
+  doServidor<Brasil>(`/api/brasil?x=1${q(turno)}`, () => local.apuracaoComUrnas(turno));
 
 export const estado = (turno: number, uf: string) =>
   doServidor(`/api/uf?uf=${uf}${q(turno)}`, () => local.municipiosUf(turno, uf));
