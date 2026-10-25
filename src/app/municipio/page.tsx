@@ -6,7 +6,7 @@ import BarraDupla from "@/components/BarraDupla";
 import MapaEscolas from "@/components/MapaEscolas";
 import { Aviso, Migalhas, Rodape, Topo, comTurno, useAoVivo, useParametros, useTurno } from "@/components/aoVivo";
 import { municipio } from "@/lib/fonte";
-import { CORES, NOMES_UF, fmt, fmtPct } from "@/components/fmt";
+import { CORES, NOMES_UF, fmt, fmtPct, sigla } from "@/components/fmt";
 import type { Escola } from "@/lib/secoes";
 import type { Resumo } from "@/lib/tse";
 
@@ -60,7 +60,7 @@ export default function PaginaMunicipio() {
         ]} />
         <header className="grid gap-4 painel mt-3 border-l-8 !border-l-[var(--urgente)] px-5 py-4 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
-            <div className="rotulo mb-2">Presidente · {turno === 1 ? "1º" : "2º"} turno · {uf.toUpperCase()}</div>
+            <div className="rotulo mb-2">Presidente · {turno === 1 ? "1º" : "2º"} turno · {sigla(uf)}</div>
             <h1 className="break-words font-serif text-4xl capitalize leading-[.9] tracking-tight sm:text-7xl">{r?.nome?.toLowerCase() ?? "…"}</h1>
           </div>
           {dados && (

@@ -41,3 +41,4 @@ yarn-error.log*
 next-env.d.ts
 servidor/dist/
 servidor/base-1turno.json
+servidor/linha-do-tempo.json

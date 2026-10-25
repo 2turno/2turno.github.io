@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Busca from "./Busca";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /** Turno escolhido na URL (?turno=1); padrao: 2o turno. */
@@ -88,8 +89,11 @@ export function Topo({ erro, consultadoEm, turno }: { erro: string | null; consu
           </nav>
         </span>
         <span className="hidden items-center text-[var(--mudo)] lg:flex">{hoje}</span>
+        <span className="flex items-stretch">
+        <Busca turno={turno} />
         <span className="flex items-center px-3 tabular-nums sm:px-4">
           {consultadoEm ? new Date(consultadoEm).toLocaleTimeString("pt-BR") : "--:--:--"}
+        </span>
         </span>
       </div>
       {primeiro && (

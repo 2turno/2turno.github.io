@@ -1,34 +1,49 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import Mapa from "@/components/Mapa";
+import Mapa, { type Pintar } from "@/components/Mapa";
 import Placar from "@/components/Placar";
 import Totais from "@/components/Totais";
+import { AvisoPausa, LinhaStatus, PorRegiao, Vantagem } from "@/components/Disputa";
+import LinhaDoTempo from "@/components/LinhaDoTempo";
+import { reconstruir, type Foto } from "@/lib/linhaTempo";
 import BarraDupla from "@/components/BarraDupla";
 import Corrida, { type Ponto } from "@/components/Corrida";
 import { Aviso, Rodape, Topo, comTurno, useAoVivo, useTurno } from "@/components/aoVivo";
-import { CORES, HEX, NOMES_UF, fmt, fmtPct } from "@/components/fmt";
+import { CORES, HEX, NOMES_UF, fmt, fmtPct, sigla } from "@/components/fmt";
 import type { Resumo } from "@/lib/tse";
 import { brasil } from "@/lib/fonte";
 
 export default function Home() {
   const turno = useTurno();
-  const { dados, erro } = useAoVivo<Awaited<ReturnType<typeof brasil>>>(turno ? `br-${turno}` : null, () => brasil(turno!), 5000);
+  const { dados: aoVivo, erro } = useAoVivo<Awaited<ReturnType<typeof brasil>>>(turno ? `br-${turno}` : null, () => brasil(turno!), 5000);
+  // linha do tempo: null = ao vivo; uma foto = mostra como estava naquele horario
+  const [momento, setMomento] = useState<Foto | null>(null);
+  const dados = useMemo(() => (aoVivo && momento ? { ...aoVivo, ...reconstruir(momento, aoVivo), peloBU: false } : aoVivo), [aoVivo, momento]);
   const [sel, setSel] = useState("br");
+  // "Ver o meu estado": a escolha fica salva neste navegador
+  useEffect(() => {
+    try { const m = localStorage.getItem("meuEstado"); if (m) setSel(m); } catch {}
+  }, []);
+  const escolher = (uf: string) => {
+    setSel(uf);
+    try { localStorage.setItem("meuEstado", uf); } catch {}
+  };
   const [modo, setModo] = useState<"geo" | "blocos">("geo");
+  const [pintar, setPintar] = useState<Pintar>("margem");
   const [ordem, setOrdem] = useState<"eleitorado" | "margem" | "nome">("eleitorado");
   const [historico, setHistorico] = useState<Ponto[]>([]);
 
   // curva da corrida: um ponto a cada nova parcial
   useEffect(() => {
-    const br = dados?.br;
+    const br = aoVivo?.br;
     if (!br?.cand[0] || br.pst === 0) return;
     setHistorico((h) => {
       const base = h.length && br.pst < h[h.length - 1].pst ? [] : h;
       if (base.length && base[base.length - 1].pst === br.pst) return base;
       return [...base, { pst: br.pst, a: br.cand[0].pvap }];
     });
-  }, [dados]);
+  }, [aoVivo]);
 
   const br = dados?.br ?? null;
   const atual: Resumo | null = sel === "br" ? br : dados?.ufs[sel] ?? null;
@@ -82,6 +97,8 @@ export default function Home() {
           )}
         </header>
 
+        {turno === 2 && <AvisoPausa />}
+        {turno === 2 && aoVivo?.br && <LinhaDoTempo cand={aoVivo.br.cand} onMomento={setMomento} />}
         {erro && !dados && <Aviso>Falha ao consultar o TSE ({erro}). Nova tentativa em instantes.</Aviso>}
         {dados?.aguardando && (
           <Aviso>
@@ -94,13 +111,16 @@ export default function Home() {
         {br && (
           <>
             <section className="painel mt-4 p-4 sm:p-8">
+              <div className="rotulo mb-1">Brasil · Presidente · 2026 · {turno === 1 ? "1º" : "2º"} turno</div>
+              <div className="mb-5">
+                <LinhaStatus r={br} aoVivo={turno === 2} fonte={dados!.peloBU ? `soma de ${fmt(dados!.urnasLidas)} urnas já lidas` : undefined} />
+              </div>
               <Placar r={br} />
-              <div className="mt-9 flex flex-wrap justify-between gap-x-6 gap-y-1 font-mono text-xs text-[var(--mudo)] sm:text-sm">
-                <span>Diferença: <b className="text-[var(--tinta)]">{fmt(dif)}</b> votos</span>
-                <span>Estados: <b style={{ color: CORES[0] }}>{vencidos[0]}</b> × <b style={{ color: CORES[1] }}>{vencidos[1]}</b></span>
-                {dados!.peloBU
-                  ? <span className="font-bold text-[#f5c518]">Parcial pela soma de {fmt(dados!.urnasLidas)} urnas já lidas · total oficial do TSE ainda não atualizado</span>
-                  : <span>{br.pst > 0 ? `Divulgação TSE: ${br.atualizado}` : "Aguardando a primeira totalização do TSE"}</span>}
+              <div className="mt-9 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+                <Vantagem r={br} />
+                <span className="font-serif text-sm font-bold uppercase text-[var(--mudo)]">
+                  Estados: <b style={{ color: CORES[0] }}>{vencidos[0]}</b> × <b style={{ color: CORES[1] }}>{vencidos[1]}</b>
+                </span>
               </div>
               <div className="mt-6"><Totais r={br} colunas={6} /></div>
             </section>
@@ -112,6 +132,16 @@ export default function Home() {
                     <div className="rotulo">Mapa</div>
                     <h2 className="font-serif text-3xl">Quem lidera em cada estado</h2>
                   </div>
+                  <div className="flex flex-wrap gap-2">
+                  <div className="flex border border-[var(--linha)] font-mono text-[11px] uppercase tracking-widest">
+                    <span className="flex items-center px-2 text-[var(--mudo)]">Pintar por</span>
+                    {(["margem", "vencedor"] as const).map((m) => (
+                      <button key={m} onClick={() => setPintar(m)}
+                        className={`px-3 py-1.5 transition ${pintar === m ? "bg-[var(--tinta)] text-[var(--papel)]" : "hover:bg-[var(--papel-2)]"}`}>
+                        {m === "margem" ? "Margem" : "Vencedor"}
+                      </button>
+                    ))}
+                  </div>
                   <div className="flex border border-[var(--linha)] font-mono text-[11px] uppercase tracking-widest">
                     {(["geo", "blocos"] as const).map((m) => (
                       <button key={m} onClick={() => setModo(m)}
@@ -120,8 +150,9 @@ export default function Home() {
                       </button>
                     ))}
                   </div>
+                  </div>
                 </div>
-                <Mapa ufs={dados!.ufs} selecionada={sel} onSelecionar={setSel} modo={modo} />
+                <Mapa ufs={dados!.ufs} selecionada={sel} onSelecionar={escolher} modo={modo} pintar={pintar} />
                 <Legenda nomes={nomes} />
                 {dados!.ufsPeloBU.length > 0 && (
                   <p className="mt-2 font-serif text-xs font-bold uppercase text-[#f5c518]">
@@ -137,7 +168,7 @@ export default function Home() {
                       <div className="rotulo">Recorte</div>
                       <h2 className="font-serif text-3xl leading-none">{NOMES_UF[sel]}</h2>
                     </div>
-                    <select value={sel} onChange={(e) => setSel(e.target.value)}
+                    <select value={sel} onChange={(e) => escolher(e.target.value)} aria-label="Ver o meu estado"
                       className="border border-[var(--linha)] bg-[var(--papel-2)] px-2 py-1.5 font-mono text-sm uppercase">
                       <option value="br">Brasil</option>
                       {Object.keys(dados!.ufs).sort().map((uf) => <option key={uf} value={uf}>{NOMES_UF[uf]}</option>)}
@@ -157,6 +188,10 @@ export default function Home() {
                 </section>
 
                 <section className="painel p-5">
+                  <PorRegiao ufs={dados!.ufs} />
+                </section>
+
+                <section className="painel p-5">
                   <div className="rotulo">A corrida</div>
                   <h2 className="mb-4 font-serif text-3xl">Como a vantagem evoluiu</h2>
                   <Corrida pontos={historico} nomes={nomes} />
@@ -168,7 +203,7 @@ export default function Home() {
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <div className="rotulo">Estado a estado</div>
-                  <h2 className="font-serif text-3xl">Todas as 27 unidades da federação</h2>
+                  <h2 className="font-serif text-3xl">Os 27 estados e o Exterior</h2>
                 </div>
                 <div className="flex gap-4 font-mono text-[11px] uppercase tracking-widest">
                   {(["eleitorado", "margem", "nome"] as const).map((o) => (
@@ -199,7 +234,7 @@ function Ticker({ ufs, turno }: { ufs: Record<string, Resumo>; turno: number | n
     const l = a && b && a.vap + b.vap > 0 ? (a.vap >= b.vap ? 0 : 1) : -1;
     return (
       <Link key={k + r.uf} href={comTurno(`/uf?uf=${r.uf}`, turno)} className="flex shrink-0 items-center gap-2 px-5 hover:underline">
-        <b>{r.uf.toUpperCase()}</b>
+        <b>{sigla(r.uf)}</b>
         {l >= 0 && <i className="inline-block h-2 w-2" style={{ background: HEX[l] }} />}
         {l >= 0 && <span>{fmtPct(r.cand[l].pvap, 1)}</span>}
         <span className="text-[var(--mudo)]">{fmtPct(r.pst, 0)} apur.</span>
@@ -234,7 +269,7 @@ function LinhaEstado({ r, href }: { r: Resumo; href: string }) {
   const tem = a && b && a.vap + b.vap > 0;
   return (
     <Link href={href} className="grid w-full grid-cols-[2.5rem_1fr_auto] items-center gap-3 border-b border-[var(--linha)] py-3 transition hover:bg-[var(--papel-2)]">
-      <span className="font-mono text-sm font-bold">{r.uf.toUpperCase()}</span>
+      <span className="font-mono text-sm font-bold">{sigla(r.uf)}</span>
       <span className="min-w-0">
         <span className="block truncate font-serif text-lg leading-tight">{NOMES_UF[r.uf]}</span>
         <span className="mt-1 block"><BarraDupla r={r} /></span>

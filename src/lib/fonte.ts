@@ -1,7 +1,10 @@
 // De onde as telas pegam os dados: primeiro o servidor (que ja tem o pais inteiro somado);
 // se ele nao responder, o proprio navegador busca no TSE (modo antigo, com limite de urnas).
 import * as local from "./cliente";
+import { fotografar, registrarFoto, type Foto } from "./linhaTempo";
+
 type Brasil = Awaited<ReturnType<typeof local.apuracaoComUrnas>>;
+const fotosLocais: Foto[] = []; // modo navegador: so desde que a pagina abriu
 
 // O endereco do servidor fica em /api.json (publicado com o site), porque o tunel pode mudar de URL.
 let api: Promise<string> | null = null;
@@ -34,7 +37,14 @@ async function doServidor<T>(caminho: string, reserva: () => Promise<T>): Promis
 const q = (turno: number) => (turno === 1 ? "&turno=1" : "");
 
 export const brasil = (turno: number) =>
-  doServidor<Brasil>(`/api/brasil?x=1${q(turno)}`, () => local.apuracaoComUrnas(turno));
+  doServidor<Brasil>(`/api/brasil?x=1${q(turno)}`, async () => {
+    const a = await local.apuracaoComUrnas(turno);
+    if (turno === 2) registrarFoto(fotosLocais, fotografar(a));
+    return a;
+  });
+
+export const linhaDoTempo = (desde: number) =>
+  doServidor<{ fotos: Foto[] }>(`/api/linha-do-tempo?desde=${desde}`, async () => ({ fotos: fotosLocais.filter((f) => f.t > desde) }));
 
 export const estado = (turno: number, uf: string) =>
   doServidor(`/api/uf?uf=${uf}${q(turno)}`, () => local.municipiosUf(turno, uf));

@@ -4,7 +4,8 @@ import fs from "node:fs";
 import http from "node:http";
 import { apuracao, apuracaoComUrnas, baseDoEstado1T, definirCandidatos, municipio, municipiosUf, unidadeDoEstado, unidadesDoEstado, type Base } from "../src/lib/cliente";
 import { UFS, velocidade } from "../src/lib/tse";
-import { prever, registrar, type Ponto, type Unidade } from "../src/lib/previsao";
+import { type Unidade } from "../src/lib/previsao";
+import { fotografar, registrarFoto, type Foto } from "../src/lib/linhaTempo";
 
 // base do 1o turno por municipio (nao muda mais): baixada uma vez e guardada em disco
 const ARQ_BASE = process.env.ARQ_BASE ?? "base-1turno.json";
@@ -35,8 +36,13 @@ async function unidades(a: Awaited<ReturnType<typeof apuracaoComUrnas>>): Promis
   return listas.flat();
 }
 
-// serie da previsao ao longo da noite (2o turno), igual para todos os visitantes
-const serie: Ponto[] = [];
+// linha do tempo da noite (2o turno), igual para todos e guardada em disco
+const ARQ_FOTOS = process.env.ARQ_FOTOS ?? "linha-do-tempo.json";
+const fotos: Foto[] = fs.existsSync(ARQ_FOTOS) ? JSON.parse(fs.readFileSync(ARQ_FOTOS, "utf8")) : [];
+let fotosSalvas = fotos.length;
+setInterval(() => {
+  if (fotos.length !== fotosSalvas) { fs.writeFileSync(ARQ_FOTOS, JSON.stringify(fotos)); fotosSalvas = fotos.length; }
+}, 30_000);
 
 const PORTA = Number(process.env.PORTA) || 4100;
 const ORIGENS = (process.env.ORIGENS ?? "https://2turno.github.io").split(",");
@@ -67,7 +73,7 @@ async function responder(url: URL): Promise<[number, unknown]> {
     case "/api/brasil":
       return [200, await emCache(`br-${turno}`, 3000, async () => {
         const a = await apuracaoComUrnas(turno);
-        if (turno !== 2) return a;
+        if (turno === 2) registrarFoto(fotos, fotografar(a));
         return a;
       })];
     case "/api/uf":
@@ -76,6 +82,10 @@ async function responder(url: URL): Promise<[number, unknown]> {
     case "/api/municipio":
       if (!UFS.includes(uf) || !/^\d{5}$/.test(mun)) return [400, { erro: "parâmetros inválidos" }];
       return [200, await emCache(`mun-${turno}-${uf}-${mun}`, 2000, () => municipio(turno, uf, mun))];
+    case "/api/linha-do-tempo": {
+      const desde = Number(url.searchParams.get("desde")) || 0;
+      return [200, { fotos: fotos.filter((f) => f.t > desde) }];
+    }
     case "/api/saude":
       return [200, { ok: true, memoriaMB: Math.round(process.memoryUsage().rss / 1e6), desde: inicio, tse: velocidade() }];
     default:

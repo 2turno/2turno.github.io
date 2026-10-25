@@ -22,7 +22,7 @@ export type Apuracao = {
   consultadoEm: string;
 };
 
-export const UFS = ["ac","al","am","ap","ba","ce","df","es","go","ma","mg","ms","mt","pa","pb","pe","pi","pr","rj","rn","ro","rr","rs","sc","se","sp","to"];
+export const UFS = ["ac","al","am","ap","ba","ce","df","es","go","ma","mg","ms","mt","pa","pb","pe","pi","pr","rj","rn","ro","rr","rs","sc","se","sp","to","zz"]; // zz = Exterior
 
 export const BASE = "https://resultados.tse.jus.br/oficial";
 export const CICLO = process.env.TSE_CICLO ?? "ele2026";
@@ -169,6 +169,13 @@ export async function municipiosDaUf(turno: number, uf: string): Promise<MunCfg[
   const porUf = Object.fromEntries(cfg.abr.map((a) => [a.cd, a.mu]));
   cfgMun.set(turno, { em: Date.now(), porUf });
   return porUf[uf] ?? [];
+}
+
+/** Todos os municipios do pais (para a busca). */
+export async function listaMunicipios(turno: number) {
+  await municipiosDaUf(turno, "ac");
+  const porUf = cfgMun.get(turno)!.porUf;
+  return Object.entries(porUf).flatMap(([uf, ms]) => ms.map((m) => ({ uf, cd: m.cd, nm: m.nm })));
 }
 
 const cacheMun = new Map<string, { em: number; r: Resumo }>();
